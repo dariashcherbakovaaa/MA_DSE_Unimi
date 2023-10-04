@@ -1,6 +1,3 @@
-# MA_DSE_Unimi
-Here you can find my projects for a Master degree in Data Science for Economics at La Statale.
+# Advanced Multivariate Statistics
 
-🔗[**R package**](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/R-course)
-
-✂️[**Machine Learning**](https://github.com/dariashcherbakovaaa/ML_muffins-VS-chihua)
+There is a final project on Advanced Multivariate Statistics course
