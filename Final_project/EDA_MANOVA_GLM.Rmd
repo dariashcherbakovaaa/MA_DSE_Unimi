@@ -1,0 +1,500 @@
+---
+title: "EDA & MANOVA & Generalized Linear Model"
+author: "Shcherbakova Daria"
+date: "2023-10-31"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+library(knitr)
+library(dplyr)
+library(haven)
+library(car)
+library(stats)
+library(scales)
+library(lme4)
+library(lmerTest)
+library(corrplot)
+
+library(ggplot2)
+library(sjPlot)
+library(gridExtra)
+library(mvnormalTest)
+library(ggeffects)
+
+options(scipen=999)
+```
+
+```{r data read}
+data <- read_spss("database.sav", user_na = FALSE)
+
+
+haven::print_labels(data$jQ62)
+
+
+data <- data %>%
+  filter(jQ22 < 5)
+
+df <- data %>%
+  mutate(DV = ifelse(jQ61 == 1, 0, 1)) %>%
+  rename(
+    HealthCare = jQ62,
+    Transport = jQ63,
+    Culture = jQ64,
+    Housing = jQ65,
+    Security = jQ66,
+    Career = jQ67,
+    Salary = jQ68,
+    Education = jQ69,
+    Business = jQ70,
+    HealthCareWork = jQ52,
+    TransportWork = jQ53,
+    CultureWork = jQ54,
+    HousingWork = jQ55,
+    SecurityWork = jQ56,
+    CareerWork = jQ57,
+    SalaryWork = jQ58,
+    EducationWork = jQ59,
+    BusinessWork = jQ60,
+    aS3_a = aS3_a,
+    aS3_b = aS3_b,
+    hQ68 = hQ68,
+    Gender = Gender
+  ) %>%
+  mutate(
+    HealthCare = ifelse(DV == 0, HealthCareWork, HealthCare),
+    Transport = ifelse(DV == 0, TransportWork, Transport),
+    Culture = ifelse(DV == 0, CultureWork, Culture),
+    Housing = ifelse(DV == 0, HousingWork, Housing),
+    Security = ifelse(DV == 0, SecurityWork, Security),
+    Career = ifelse(DV == 0, CareerWork, Career),
+    Salary = ifelse(DV == 0, SalaryWork, Salary),
+    Education = ifelse(DV == 0, EducationWork, Education),
+    Business = ifelse(DV == 0, BusinessWork, Business)
+  )
+
+df$prof <- car::recode(as.numeric(data$GQ8_coded), 
+   "1 = 1; 2 = 3; 3 = 1; 4 = 5; 5 = 4; 6 = 3; 7 = 4; 8 = 2; 9 = 2; 10 = 5;
+    11 = 7; 12 = 5; 13 = 3; 14 = 3; 15 = 6; 16 = 9; 17 = 2; 18 = 2; 19 = 3; 20 = 5;
+    21 = 3; 22 = 2; 23 = 3; 24 = 7; 25 = 9; 26 = 1; 27 = 6; 28 = 6; 29 = 9; 30 = 6;
+    31 = 6; 32 = 9; 33 = 10; 34 = 6; 35 = 6; 36 = 3; 37 = 5; 38 = 2; 39 = 2; 40 = 3;
+    41 = 3; 42 = 1; 43 = 3; 44 = 3; 45 = 3; 46 = 3; 47 = 3; 48 = 2; 49 = 9; 50 = 7;
+    51 = 6; 52 = 3; 53 = 3; 54 = 1; 55 = 3; 56 = 3; 57 = 10; 58 = 3; 59 = 4; 60 = 2;
+    61 = 3; 62 = 2; 63 = 2; 64 = 10; 980 = 10; 990 = NA
+")
+
+df <- df %>% filter(df$prof < 7)
+
+df$spec <- car::recode(as.numeric(df$prof), 
+   "1 = 1; 2 = 2; 3 = 3; 4 = 2; 5 = 4; 6 = 5; else = NA"
+)
+
+# Select columns and factorize 'Gender' and 'happy'
+d1 <- df %>%
+  select(
+    DV,
+    HealthCare:Business,
+    HealthCareWork:BusinessWork,
+    spec,
+    hQ68,
+    aS3_a,
+    aS3_b,
+    Gender,
+    jQ21,
+    jQ48,
+    jQ89
+  ) %>%
+  rename(
+    mother_education = aS3_a,
+    father_education = aS3_b,
+    material_status = hQ68
+  )
+
+if ("jQ21" %in% names(d1)) {
+  d1$happy <- car::recode(as.numeric(d1$jQ21), '1=4;2=3;3=2;4=1;else=NA')
+}
+
+d1$spec <- as.factor(d1$spec)
+
+if ("Gender" %in% names(d1)) {
+  d1$gender <- factor(d1$Gender, levels = c(0, 1), labels = c("Male", "Female"))
+}
+
+```
+
+##### EDA + Visualisation
+```{r descriptive statistics}
+addmargins(table(d1$DV, useNA = 'ifany'))
+round(addmargins(prop.table(table(d1$DV))),2)*100
+addmargins(table(d1$spec, useNA = 'ifany'))
+addmargins(table(d1$gender, useNA = 'ifany'))
+addmargins(table(d1$HealthCare, useNA = 'ifany'))
+addmargins(table(d1$Transport, useNA = 'ifany'))
+addmargins(table(d1$Culture, useNA = 'ifany'))
+addmargins(table(d1$Housing, useNA = 'ifany'))
+addmargins(table(d1$Security, useNA = 'ifany'))
+addmargins(table(d1$Career, useNA = 'ifany'))
+addmargins(table(d1$Salary, useNA = 'ifany'))
+addmargins(table(d1$Education, useNA = 'ifany'))
+addmargins(table(d1$Business, useNA = 'ifany'))
+
+db <- na.omit(d1)
+db$migration_status <- ifelse(db$DV == 0, "Stayed", "Migrated")
+db$migration_status <- factor(db$migration_status, levels = c("Stayed", "Migrated"))
+
+
+par(mfrow = c(3, 3))
+variables <- c("HealthCare", "Transport", "Culture", "Housing",
+               "Security", "Career", "Salary", "Education", "Business")
+
+for (variable in variables) {
+  p <- ggplot(db, aes(x = db[[variable]], fill = factor(migration_status))) +
+    geom_histogram(binwidth = 1, position = "dodge", color = "black") +
+    labs(title = paste("Histogram of", variable),
+         x = variable, y = "Frequency") +
+    scale_fill_manual(values = c("Stayed" = "purple", "Migrated" = "lightblue")) +
+    theme_void()
+  print(p)
+}
+
+ggplot(db, aes(x = factor(migration_status), fill = gender)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Gender Distribution by DV",
+       x = "", y = "") +
+  scale_fill_manual(values = c("Male" = "lightblue", "Female" = "lightcoral")) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor.y = element_blank())
+
+
+par(mfrow = c(3, 3))
+
+ggplot(db, aes(x = factor(spec), fill = migration_status)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Distribution of spec by Migration Status",
+       x = "Specialization", y = "Frequency") +
+  scale_fill_manual(values = c("Stayed" = "purple", "Migrated" = "lightblue")) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor.y = element_blank())
+```
+##### Correlation
+```{R CORR PLOT}
+cor.tab <- cor(na.omit(db[, c("HealthCare",'Transport','Culture', 'Housing',
+                       'Security', 'Career', 'Salary', 'Education',
+                       'Business')]))
+
+round(cor.tab, 2)
+
+
+corrplot(cor.tab, 
+         method = "circle",
+         order = "hclust",
+         addrect = 3,
+         type = "lower",  
+         tl.col = "black",
+         tl.srt = 45,  
+         tl.cex = 0.8, 
+         diag = FALSE  
+)
+```
+### EDA + Visualisation
+```{r}
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(HealthCare), sd = sd(HealthCare))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Transport), sd = sd(Transport))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Culture), sd = sd(Culture))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Housing), sd = sd(Housing))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Security), sd = sd(Security))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Career), sd = sd(Career))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Salary), sd = sd(Salary))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Education), sd = sd(Education))
+db %>% group_by(DV) %>%  summarise(n = n(), mean = mean(Business), sd = sd(Business))
+
+p <- ggplot(db, aes(x = factor(DV), y = HealthCare, fill = factor(DV))) +
+  geom_boxplot(outlier.shape = NULL, na.rm = TRUE) +
+  geom_jitter(width = 0.0001) +
+  theme(legend.position = "top")
+
+print(p)
+
+
+
+p1 <- ggplot(db, aes(x = factor(DV), y = HealthCare, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p2 <- ggplot(db, aes(x = factor(DV), y = Transport, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p3 <- ggplot(db, aes(x = factor(DV), y = Culture, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p4 <- ggplot(db, aes(x = factor(DV), y = Housing, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p5 <- ggplot(db, aes(x = factor(DV), y = Security, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p6 <- ggplot(db, aes(x = factor(DV), y = Career, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p7 <- ggplot(db, aes(x = factor(DV), y = Salary, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p8 <- ggplot(db, aes(x = factor(DV), y = Education, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+p9 <- ggplot(db, aes(x = factor(DV), y = Business, fill = factor(DV))) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.0001) + theme(legend.position = "top") + facet_wrap(~factor(DV), ncol = 2)
+
+grid.arrange(p1, p2, p3, p4, p5,
+             p6, p7, p8, p9, ncol=3)
+
+
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(HealthCare), sd = sd(HealthCare))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Transport), sd = sd(Transport))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Culture), sd = sd(Culture))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Housing), sd = sd(Housing))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Security), sd = sd(Security))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Career), sd = sd(Career))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Salary), sd = sd(Salary))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Education), sd = sd(Education))
+db %>% group_by(spec) %>%  summarise(n = n(), mean = mean(Business), sd = sd(Business))
+
+
+p1 <- ggplot(db, aes(x = spec, y = HealthCare, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p2 <- ggplot(db, aes(x = spec, y = Transport, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p3 <- ggplot(db, aes(x = spec, y = Culture, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p4 <- ggplot(db, aes(x = spec, y = Housing, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p5 <- ggplot(db, aes(x = spec, y = Security, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p6 <- ggplot(db, aes(x = spec, y = Career, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p7 <- ggplot(db, aes(x = spec, y = Salary, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p8 <- ggplot(db, aes(x = spec, y = Education, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p9 <- ggplot(db, aes(x = spec, y = Business, fill = spec)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+
+grid.arrange(p1, p2, p3, p4, p5,
+             p6, p7, p8, p9, ncol=3)
+
+
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(HealthCare), sd = sd(HealthCare))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Transport), sd = sd(Transport))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Culture), sd = sd(Culture))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Housing), sd = sd(Housing))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Security), sd = sd(Security))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Career), sd = sd(Career))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Salary), sd = sd(Salary))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Education), sd = sd(Education))
+db %>% group_by(gender) %>%  summarise(n = n(), mean = mean(Business), sd = sd(Business))
+
+
+p1 <- ggplot(db, aes(x = gender, y = HealthCare, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p2 <- ggplot(db, aes(x = gender, y = Transport, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p3 <- ggplot(db, aes(x = gender, y = Culture, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p4 <- ggplot(db, aes(x = gender, y = Housing, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p5 <- ggplot(db, aes(x = gender, y = Security, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p6 <- ggplot(db, aes(x = gender, y = Career, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p7 <- ggplot(db, aes(x = gender, y = Salary, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p8 <- ggplot(db, aes(x = gender, y = Education, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+p9 <- ggplot(db, aes(x = gender, y = Business, fill = gender)) + geom_boxplot(outlier.shape = NA) + geom_jitter(width = 0.0001) + theme(legend.position="top")
+
+grid.arrange(p1, p2, p3, p4, p5,
+             p6, p7, p8, p9, ncol=3)
+
+```
+
+### Manova
+```{r MANOVA}
+mardia(db[, c('HealthCare','Transport','Culture', 'Housing','Security',
+              'Career', 'Salary', 'Education','Business')])$mv.test
+
+## we reject the null hypothesis and so we say that data doesn't follow multivariate normality.
+#but as we know thanks to the Multivariate Cental Limit theorem if the sample size for each combination of dependent and independent variable is grater than 30 we can assume multivariate normality.
+
+# MANOVA
+manova_model <- manova(cbind(HealthCare, Transport, Culture, Housing, Security, Career, Salary, Education, Business) ~ spec, data = db);
+summary(manova_model);
+summary.aov(manova_model)
+
+# MANOVA
+manova_model <- manova(cbind(HealthCare, Transport, Culture, Housing, Security, Career, Salary, Education, Business) ~ gender, data = db);
+summary(manova_model);
+summary.aov(manova_model)
+
+```
+### Logistic regression
+```{r logistic regression}
+db$spec <- factor(db$spec, levels = c(1, 2, 3, 4, 5), labels = c("Economics","STEM", "Soc&Hum",
+                                                                 "Medicine", "Natural"))
+m0 <- glm(DV ~ HealthCare + Transport + Culture + Housing + Security + Career + Salary +
+            Education + Business + as.factor(spec) +
+          + as.factor(mother_education) + as.factor(father_education) + as.factor(material_status) +
+            as.factor(gender),
+          family = "binomial", data = db)
+tab_model(m0)
+
+f3 <- glm(DV ~ (HealthCare + Transport + Culture + Housing + Security + Career + Salary + Education + Business) * as.factor(spec), family = "binomial", data = db)
+
+
+tab_model(f3)
+plot_model(f3, title = "", axis.labels = c('Business × Natural science',
+                                           'Business × Medicine',
+                                           'Business × Soc&Hum',
+                                           'Business × STEM',
+                                           'Education × Natural science',
+                                           'Education × Medicine',
+                                           'Education × Soc&Hum',
+                                           'Education × STEM',
+                                           'Salary × Natural science',
+                                           'Salary × Medicine',
+                                           'Salary × Soc&Hum',
+                                           'Salary × STEM',
+                                           'Career × Natural science',
+                                           'Career × Medicine',
+                                           'Career × Soc&Hum',
+                                           'Career × STEM',
+                                           'Security × Natural science',
+                                           'Security × Medicine',
+                                           'Security × Soc&Hum',
+                                           'Security × STEM',
+                                           'Housing × Natural science',
+                                           'Housing × Medicine',
+                                           'Housing × Soc&Hum',
+                                           'Housing × STEM',
+                                           'Culture × Natural science',
+                                           'Culture × Medicine',
+                                           'Culture × Soc&Hum',
+                                           'Culture × STEM',
+                                           'Transport × Natural science',
+                                           'Transport × Medicine',
+                                           'Transport × Soc&Hum',
+                                           'Transport × STEM',
+                                           'HealthCare × Natural science',
+                                           'HealthCare × Medicine',
+                                           'HealthCare × Soc&Hum',
+                                           'HealthCare × STEM',
+                                           'Natural science', 'Medicine',
+                                           'Soc&Hum', 'STEM',
+                                          "Business opportunities",
+                                          'Education opportunities',
+                                          'Salary level',
+                                          'Career opportunities',
+                                          'Security',
+                                          'Housing conditions',
+                                          'Culture',
+                                          'Transport',
+                                          'Healtcare',
+                                          "Intercept"),
+           show.intercept = TRUE, show.values = TRUE, value.size = 3,
+           value.offset = 0.35, dot.size = 1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  labs(x = "Predictors", y = "Odds Ratios")
+
+step(m0, direction = 'backward', steps = 1000)
+
+step(f3, direction = 'backward', steps = 1000)
+
+ff <- glm(formula = DV ~ HealthCare + Culture + Housing + Security + 
+    Career + Salary + Business + as.factor(spec) + Housing:as.factor(spec), 
+    family = "binomial", data = db)
+
+
+plot_model(ff, title = "", axis.labels = c(
+                                           'Housing × Natural science',
+                                           'Housing × Medicine',
+                                           'Housing × Soc&Hum',
+                                           'Housing × STEM',
+                                           'Natural science', 'Medicine',
+                                           'Soc&Hum', 'STEM',
+                                          "Business opportunities",
+                                         
+                                          'Salary level',
+                                          'Career opportunities',
+                                          'Security',
+                                          'Housing conditions',
+                                          'Culture',
+                                          
+                                          'Healtcare',
+                                          "Intercept"),
+           show.intercept = TRUE, show.values = TRUE, value.size = 3,
+           value.offset = 0.35, dot.size = 1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  labs(x = "Predictors", y = "Odds Ratios")
+
+
+tab_model(ff)
+
+f0 <- glm(DV ~ HealthCare + Transport + Culture + Housing + Security + 
+    Career + Salary + Education + Business + as.factor(gender), family = "binomial", data = db)
+
+tab_model(f0)
+
+
+car::vif(f3)
+lmtest::bptest(f3)
+
+
+f1 <- glm(DV ~ (HealthCare + Transport + Culture + Housing + Security + Career + Salary + Education + Business) * gender, family = "binomial", data = db)
+
+
+tab_model(f1)
+plot_model(f1, title = "", axis.labels = c(
+                                           'Business × Female',                   
+                                           'Education × Female',
+                                           'Salary × Female',
+                                           'Career × Female',
+                                           'Security × Female',
+                                           'Housing × Female',
+                                           'Culture × Female',
+                                           'Transport × Female',
+                                           'HealthCare × Female',
+                                           'Female',
+                                          "Business opportunities",
+                                          'Education opportunities',
+                                          'Salary level',
+                                          'Career opportunities',
+                                          'Security',
+                                          'Housing conditions',
+                                          'Culture',
+                                          'Transport',
+                                          'Healtcare',
+                                          "Intercept"),
+           show.intercept = TRUE, show.values = TRUE, value.size = 3,
+           value.offset = 0.35, dot.size = 1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  labs(x = "Predictors", y = "Odds Ratios")
+
+step(f1, direction = 'backward', steps = 1000)
+car::vif(f1)
+lmtest::bptest(f1)
+
+f2 <- glm(formula = DV ~ HealthCare + Culture + Housing + Security + 
+    Career + Salary + Business + gender + Culture:gender + Business:gender, 
+    family = "binomial", data = db)
+
+tab_model(f2)
+plot_model(f2, title = "", axis.labels = c(
+                                           'Business × Female',
+                                           'Culture × Female',
+                                           'Female',
+                                          "Business opportunities",
+                                          'Education opportunities',
+                                          'Salary level',
+                                          'Career opportunities',
+                                          'Security',
+                                          'Housing conditions',
+                                          'Culture',
+                                          'Transport',
+                                          'Healtcare',
+                                          "Intercept"),
+           show.intercept = TRUE, show.values = TRUE, value.size = 3,
+           value.offset = 0.35, dot.size = 1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) +
+  labs(x = "Predictors", y = "Odds Ratios")
+```

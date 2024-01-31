@@ -1,0 +1,451 @@
+---
+title: "Clustering"
+author: "Shcherbakova Daria"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cluster)
+library(factoextra)
+library(ellipse)
+library(dplyr)
+library(ggplot2)
+library(fpc)
+```
+
+##### data preparation
+```{r data preproc}
+library(dplyr)
+dataset <- database %>% dplyr::select(-Gender:-jQ21)
+dim(dataset)
+
+# Dummy variables
+
+dummy_spec <- model.matrix(~ factor(dataset$spec, labels = c("Spec_econ", "Spec_STEM", "Spec_Soc", "Spec_Med", "Spec_Nat")) - 1)
+colnames(dummy_spec) <- paste("Spec", levels(factor(dataset$spec, labels = c("Spec_econ", "Spec_STEM", "Spec_Soc", "Spec_Med", "Spec_Nat"))), sep = "_")
+dataset <- cbind(dataset, dummy_spec)
+dataset <- dataset[, !names(dataset) %in% "spec"]
+
+dataset$income <- ifelse(dataset$material_status %in% c(1,2,3), 1,
+                         ifelse(dataset$material_status == 4 , 2 , 
+                                ifelse(dataset$material_status == 5, 3, 4)))
+dataset <- dataset[, !names(dataset) %in% "material_status"]
+
+income_dummy <- model.matrix(~factor(income, levels = c(1, 2, 3, 4), labels = c("poor", "medium", "high", "rich")) - 1, data = dataset)
+colnames(income_dummy) <- c("poor", "medium", "high", "rich")
+dataset <- cbind(dataset, income_dummy)
+dataset <- dataset[, !names(dataset) %in% "income"]
+
+dataset$Gender_Female <- as.numeric(dataset$gender == "Female")
+dataset <- dataset[, !names(dataset) %in% "gender"]
+
+dataset <- dataset[, !names(dataset) %in% c("Index_soc", "Index_eco")]
+
+# scaling
+numeric_columns <- sapply(dataset, is.numeric)
+table(numeric_columns)
+
+numeric_data <- dataset[, numeric_columns]
+scaled_data <- as.data.frame(scale(numeric_data))
+
+# datasets
+all_data <- scaled_data %>% dplyr::select(-Economical:-Prof.development)
+sat <- database %>% dplyr::select(HealthCare:Business)
+
+sat_econ_soc <- scaled_data %>% dplyr::select(HealthCare:Business, Economical:Social)
+sat_com_dev <- scaled_data %>% dplyr::select(HealthCare:Business, Soc.comfort:Prof.development)
+
+data_econ_soc <- scaled_data %>% dplyr::select(-DV,-HealthCare:-Business, -Soc.comfort, -Prof.development)
+data_com_dev <- scaled_data %>% dplyr::select(-DV,-HealthCare:-Business, -Economical, -Social)
+
+```
+
+## Kmeans + kmedois
+```{r K means satisfaction}
+set.seed(3)
+fviz_nbclust(sat, kmeans, method = "wss") # elbow
+fviz_nbclust(sat, kmeans, method = "silhouette") # silhouette
+
+km <- kmeans(sat, centers = 2, nstart = 25); km; fviz_cluster(km, sat)
+km <- kmeans(sat, centers = 3, nstart = 25); km; fviz_cluster(km, sat)
+km <- kmeans(sat, centers = 5, nstart = 25); km; fviz_cluster(km, sat)
+
+pam_data <- pam(sat,2)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+pam_data <- pam(sat,3)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+library("mclust")
+dens <- densityMclust(sat)
+plot(dens, "density", type = 'persp')
+mc <- Mclust(sat)
+```
+
+
+```{r K means satisfaction + PCA.1}
+fviz_nbclust(sat_econ_soc, kmeans, method = "wss") # elbow
+fviz_nbclust(sat_econ_soc, kmeans, method = "silhouette") # silhouette
+
+km <- kmeans(sat_econ_soc, centers = 2, nstart = 25); km; fviz_cluster(km, sat_econ_soc)
+sat_econ_soc$cluster <- as.factor(km$cluster)
+ggplot(sat_econ_soc, aes(x = Social, y = Economical, color = cluster)) +
+  geom_point() +
+  labs(title = "Cluster Scatter Plot with PCA Components",
+       x = "Economical",
+       y = "Social",
+       color = "Cluster") +
+  theme_minimal()
+sat_econ_soc <- scaled_data %>% dplyr::select(HealthCare:Business, Economical:Social)
+km <- kmeans(sat_econ_soc, centers = 3, nstart = 25); km; fviz_cluster(km, sat_econ_soc)
+
+sat_econ_soc$cluster <- as.factor(km$cluster)
+ggplot(sat_econ_soc, aes(x = Social, y = Economical, color = cluster)) +
+  geom_point() +
+  labs(title = "Cluster Scatter Plot with PCA Components",
+       x = "Economical",
+       y = "Social",
+       color = "Cluster") +
+  theme_minimal()
+
+sat_econ_soc <- scaled_data %>% dplyr::select(HealthCare:Business, Economical:Social)
+
+pam_data <- pam(sat_econ_soc,2)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+pam_data <- pam(sat_econ_soc,3)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+sat_econ_soc <- scaled_data %>% dplyr::select(HealthCare:Business, Economical:Social)
+# Радар и контрибушн
+
+
+```
+
+```{r K means satisfaction + PCA.2}
+fviz_nbclust(sat_com_dev, kmeans, method = "wss") # elbow
+fviz_nbclust(sat_com_dev, kmeans, method = "silhouette") # silhouette
+
+km <- kmeans(sat_com_dev, centers = 2, nstart = 25); km; fviz_cluster(km, sat_com_dev)
+sat_com_dev$cluster <- as.factor(km$cluster)
+ggplot(sat_com_dev, aes(x = Soc.comfort, y = Prof.development, color = cluster)) +
+  geom_point() +
+  labs(title = "Cluster Scatter Plot with PCA Components",
+       x = "Soc.comfort",
+       y = "Prof.development",
+       color = "Cluster") +
+  theme_minimal()
+
+sat_com_dev <- scaled_data %>% dplyr::select(HealthCare:Business, Soc.comfort:Prof.development)
+km <- kmeans(sat_com_dev, centers = 3, nstart = 25); km; fviz_cluster(km, sat_com_dev)
+
+sat_com_dev$cluster <- as.factor(km$cluster)
+ggplot(sat_com_dev, aes(x = Soc.comfort, y = Prof.development, color = cluster)) +
+  geom_point() +
+  labs(title = "Cluster Scatter Plot with PCA Components",
+       x = "Soc.comfort",
+       y = "Prof.development",
+       color = "Cluster") +
+  theme_minimal()
+
+sat_com_dev <- scaled_data %>% dplyr::select(HealthCare:Business, Soc.comfort:Prof.development)
+
+# Радар и контрибушн
+```
+
+```{r K means ALL Data}
+fviz_nbclust(all_data, kmeans, method = "wss") # elbow
+fviz_nbclust(all_data, kmeans, method = "silhouette") # silhouette
+
+km <- kmeans(all_data, centers = 2, nstart = 25); km; fviz_cluster(km, all_data)
+km <- kmeans(all_data, centers = 3, nstart = 25); km; fviz_cluster(km, all_data)
+
+all_data <- all_data %>% dplyr::select(-DV)
+fviz_nbclust(all_data, kmeans, method = "wss") # elbow
+fviz_nbclust(all_data, kmeans, method = "silhouette") # silhouette
+km <- kmeans(all_data, centers = 2, nstart = 25); km; fviz_cluster(km, all_data)
+
+km$centers
+table(all_data$HealthCare)
+table(all_data$Career)
+```
+
+```{r K means PCA.1 + control}
+fviz_nbclust(data_econ_soc, kmeans, method = "wss") # elbow
+fviz_nbclust(data_econ_soc, kmeans, method = "silhouette") # silhouette
+
+km <- kmeans(data_econ_soc, centers = 2, nstart = 25); km; fviz_cluster(km, data_econ_soc)
+km <- kmeans(data_econ_soc, centers = 3, nstart = 25); km; fviz_cluster(km, data_econ_soc)
+km <- kmeans(data_econ_soc, centers = 6, nstart = 25); km; fviz_cluster(km, data_econ_soc)
+km <- kmeans(data_econ_soc, centers = 9, nstart = 25); km; fviz_cluster(km, data_econ_soc)
+
+pam_data <- pam(data_econ_soc,3)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+```
+
+```{r K means PCA.2 + control}
+fviz_nbclust(data_com_dev, kmeans, method = "wss") # elbow
+fviz_nbclust(data_com_dev, kmeans, method = "silhouette") # silhouette
+
+km <- kmeans(data_com_dev, centers = 3, nstart = 25); km; fviz_cluster(km, data_com_dev)
+km <- kmeans(data_com_dev, centers = 4, nstart = 25); km; fviz_cluster(km, data_com_dev)
+km <- kmeans(data_com_dev, centers = 6, nstart = 25); km; fviz_cluster(km, data_com_dev)
+
+pam_data <- pam(data_com_dev,3)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+pam_data <- pam(data_com_dev,4)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+pam_data <- pam(data_com_dev,6)
+print(pam_data)
+
+fviz_cluster(pam_data, # data
+             ellipse.type = "convex", # type of the clusters' appearence
+             #repel = T, 
+             ggtheme = theme_classic()
+)
+
+```
+
+## Hirercical cluster analysis
+```{r Hclus satisfaction}
+plot(cs <- hclust(dist(sat), method = "single"))
+plot(cc <- hclust(dist(sat), method = "complete"))
+plot(ca <- hclust(dist(sat), method = "average"))
+plot(cw <- hclust(dist(sat), method = "ward.D2"))
+
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+ac <- function(x) {
+  cluster::agnes(sat, method = x)$ac
+}
+sapply(m, ac)
+
+clust <- cluster::agnes(dist(sat), method = "ward")
+cluster::pltree(clust, cex = 0.6, hang = -1, main = "Dendrogram")
+
+gap_stat <- clusGap(sat, FUN = hcut, nstart = 25, K.max = 9, B = 50)
+par(mfcol=c(3, 1))
+fviz_nbclust(sat, hcut, method = "wss") # elbow
+fviz_nbclust(sat, hcut, method = "silhouette") # silhouette
+fviz_gap_stat(gap_stat)
+
+
+#compute distance matrix
+d <- dist(sat, method = "euclidean")
+final_clust <- hclust(d, method = "ward.D2" )
+groups <- cutree(final_clust, k=3); table(groups)
+
+final_data <- cbind(data, cluster = groups)
+aggregate(final_data, by=list(cluster=final_data$cluster), mean)
+```
+
+```{r Hclus ALL Data}
+data <- all_data
+
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+ac <- function(x) {
+  cluster::agnes(data, method = x)$ac
+}
+sapply(m, ac)
+
+clust <- cluster::agnes(dist(data), method = "ward")
+cluster::pltree(clust, cex = 0.6, hang = -1, main = "Dendrogram")
+
+gap_stat <- clusGap(data, FUN = hcut, nstart = 25, K.max = 9, B = 50)
+par(mfcol=c(3, 1))
+fviz_nbclust(data, hcut, method = "wss") # elbow
+fviz_nbclust(data, hcut, method = "silhouette") # silhouette
+fviz_gap_stat(gap_stat)
+
+
+#compute distance matrix
+d <- dist(data, method = "euclidean")
+final_clust <- hclust(d, method = "ward.D2" )
+groups <- cutree(final_clust, k=4); table(groups)
+
+final_data <- cbind(data, cluster = groups)
+aggregate(final_data, by=list(cluster=final_data$cluster), mean)
+```
+
+```{r K Hclus PCA.1 + control}
+
+data <- data_econ_soc
+
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+ac <- function(x) {
+  cluster::agnes(data, method = x)$ac
+}
+sapply(m, ac)
+
+clust <- cluster::agnes(dist(data), method = "ward")
+cluster::pltree(clust, cex = 0.6, hang = -1, main = "Dendrogram")
+
+gap_stat <- clusGap(data, FUN = hcut, nstart = 25, K.max = 9, B = 50)
+par(mfcol=c(3, 1))
+fviz_nbclust(data, hcut, method = "wss") # elbow
+fviz_nbclust(data, hcut, method = "silhouette") # silhouette
+fviz_gap_stat(gap_stat)
+
+
+#compute distance matrix
+d <- dist(data, method = "euclidean")
+final_clust <- hclust(d, method = "ward.D2" )
+groups <- cutree(final_clust, k=4); table(groups)
+
+final_data <- cbind(data, cluster = groups)
+aggregate(final_data, by=list(cluster=final_data$cluster), mean)
+```
+
+```{r K Hclus PCA.2 + control}
+data <- data_com_dev
+
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+ac <- function(x) {
+  cluster::agnes(data, method = x)$ac
+}
+sapply(m, ac)
+
+clust <- cluster::agnes(dist(data), method = "ward")
+cluster::pltree(clust, cex = 0.6, hang = -1, main = "Dendrogram")
+
+gap_stat <- clusGap(data, FUN = hcut, nstart = 25, K.max = 9, B = 50)
+par(mfcol=c(3, 1))
+fviz_nbclust(data, hcut, method = "wss") # elbow
+fviz_nbclust(data, hcut, method = "silhouette") # silhouette
+fviz_gap_stat(gap_stat)
+
+
+#compute distance matrix
+d <- dist(data, method = "euclidean")
+final_clust <- hclust(d, method = "ward.D2" )
+groups <- cutree(final_clust, k=3); table(groups)
+
+final_data <- cbind(data, cluster = groups)
+aggregate(final_data, by=list(cluster=final_data$cluster), mean)
+```
+
+## DBSCAN cluster analysis
+```{r DBSCAN satisfaction}
+set.seed(220)
+Dbscan_cl <- dbscan(sat, eps = 0.45, MinPts = 9) 
+Dbscan_cl 
+# Checking cluster 
+Dbscan_cl$cluster 
+# Table 
+table(Dbscan_cl$cluster) 
+# Plotting Cluster 
+pairs(sat, col = Dbscan_cl$cluster + 1L)
+fviz_cluster(Dbscan_cl, data = sat, geom = "point")
+```
+
+```{r DBSCAN ALL Data}
+set.seed(220)
+Dbscan_cl <- dbscan(all_data, eps = 0.45, MinPts = 3)
+Dbscan_cl 
+# Checking cluster 
+Dbscan_cl$cluster 
+# Table 
+table(Dbscan_cl$cluster) 
+# Plotting Cluster 
+plot(Dbscan_cl, as.matrix(all_data), main = "DBScan")
+pairs(all_data, col = Dbscan_cl$cluster + 1L)
+fviz_cluster(Dbscan_cl, data = as.matrix(all_data), geom = "point")
+
+```
+
+```{r K DBSCAN PCA.1 + control}
+set.seed(220)
+x <- as.matrix(data_econ_soc)
+
+Dbscan_cl <- dbscan(x, eps = 0.45, MinPts = 10)
+Dbscan_cl 
+# Checking cluster 
+Dbscan_cl$cluster 
+# Table 
+table(Dbscan_cl$cluster) 
+# Plotting Cluster 
+plot(Dbscan_cl, x, main = "DBScan")
+fviz_cluster(Dbscan_cl, data = x, geom = "point")
+
+```
+
+```{r K DBSCAN PCA.2 + control}
+
+set.seed(220)
+x <- as.matrix(data_com_dev)
+
+Dbscan_cl <- dbscan(x, eps = 0.45, MinPts = 9)
+Dbscan_cl 
+# Checking cluster 
+Dbscan_cl$cluster 
+# Table 
+table(Dbscan_cl$cluster) 
+# Plotting Cluster 
+pairs(x, col = Dbscan_cl$cluster + 1L)
+fviz_cluster(Dbscan_cl, data = x, geom = "point")
+```
+
+## Model-based (EM)
+
+```{r Model-based}
+plot(mc, "classification")
+mc$BIC
+
+library("flexclust")
+set.seed(290875)
+
+k <- cclust(sat, k = 7, save.data = TRUE)
+plot(k, project = prcomp(sat), hull = FALSE, col = rep("black", 3), xlab = "PC1", ylab = "PC2")
+```

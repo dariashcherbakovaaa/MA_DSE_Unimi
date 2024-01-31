@@ -1,0 +1,177 @@
+---
+title: "Correspondence analysis"
+author: "Shcherbakova Daria"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ca)
+library("gplots")
+d1 <- df%>%dplyr::select(HealthCare:Business, gender); d1
+
+set.seed(123)
+```
+
+```{r tables}
+contingency_HealthCare <- as.matrix(table(d1$gender, d1$HealthCare))
+dimnames(contingency_HealthCare)<- list(Gender = c("Male", "Female"),
+                                        HealthCare =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Transport <- table(d1$gender, d1$Transport)
+dimnames(contingency_Transport)<- list(Gender = c("Male", "Female"),
+                                        Transport =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Culture <- table(d1$gender, d1$Culture)
+dimnames(contingency_Culture)<- list(Gender = c("Male", "Female"),
+                                        Culture =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Housing <- table(d1$gender, d1$Housing)
+dimnames(contingency_Housing)<- list(Gender = c("Male", "Female"),
+                                        Housing =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Security <- table(d1$gender, d1$Security)
+dimnames(contingency_Security)<- list(Gender = c("Male", "Female"),
+                                        Security =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Career <- table(d1$gender, d1$Career)
+dimnames(contingency_Career)<- list(Gender = c("Male", "Female"),
+                                        Career =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Salary <- table(d1$gender, d1$Salary)
+dimnames(contingency_Salary)<- list(Gender = c("Male", "Female"),
+                                        Salary =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Education <- table(d1$gender, d1$Education)
+dimnames(contingency_Education)<- list(Gender = c("Male", "Female"),
+                                        Education =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+contingency_Business <- table(d1$gender, d1$Business)
+dimnames(contingency_Business)<- list(Gender = c("Male", "Female"),
+                                        Business =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"))
+
+
+round(addmargins(prop.table(contingency_HealthCare)*100), 1)
+round(addmargins(prop.table(contingency_Transport)*100), 1)
+round(addmargins(prop.table(contingency_Culture)*100), 1)
+round(addmargins(prop.table(contingency_Housing)*100), 1)
+round(addmargins(prop.table(contingency_Security)*100), 1)
+round(addmargins(prop.table(contingency_Career)*100), 1)
+round(addmargins(prop.table(contingency_Salary)*100), 1)
+round(addmargins(prop.table(contingency_Education)*100), 1)
+round(addmargins(prop.table(contingency_Business)*100), 1)
+
+result = CA(contingency_Business); result
+result$col
+```
+```{r}
+library(vcd)
+tables_list <- list(contingency_HealthCare, contingency_Transport, contingency_Culture, contingency_Housing,
+                     contingency_Security, contingency_Career, contingency_Salary, contingency_Education,
+                     contingency_Business)
+
+contingency_data <- array(unlist(tables_list), dim = c(2, 5, length(tables_list)),
+                           dimnames = list(c("Male", "Female"), 1:5, NULL))
+
+names(d1)
+
+x <- aperm(contingency_data, c(2, 1, 3))
+dimnames(x)[[1]] <- c("Not satisfied", "Quite not satisfied", 
+                      "Somehow satisfied&no", 'Quite satisfied', "Satisfied")
+dimnames(x)[[3]] <- c("HealthCare", "Transport", "Culture", 'Housing', "Security",
+                      "Career","Salary","Education", "Business")
+names(dimnames(x)) <- c("Satisfaction level", "Gender", "")
+ftable(x)
+
+library(factoextra)
+
+
+result <- CA(x, graph = FALSE)
+summary(result)
+result$col
+```
+```{r tables2}
+contingency_HealthCare <- as.matrix(table(d1$HealthCare, d1$gender))
+dimnames(contingency_HealthCare)<- list(HealthCare =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                        Gender = c("Male", "Female"))
+contingency_Transport <- table(d1$Transport, d1$gender)
+dimnames(contingency_Transport)<- list(Transport =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                       Gender = c("Male", "Female"))
+contingency_Culture <- table(d1$Culture, d1$gender)
+dimnames(contingency_Culture)<- list(Culture =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                     Gender = c("Male", "Female"))
+contingency_Housing <- table(d1$Housing, d1$gender)
+dimnames(contingency_Housing)<- list(Housing =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                     Gender = c("Male", "Female"))
+contingency_Security <- table(d1$Security, d1$gender)
+dimnames(contingency_Security)<- list(Security =c("Not satisfied", "Quite not satisfied",
+                                                       "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                      Gender = c("Male", "Female"))
+contingency_Career <- table(d1$Career, d1$gender)
+dimnames(contingency_Career)<- list(Career =c("Not satisfied", "Quite not satisfied","Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                    Gender = c("Male", "Female"))
+contingency_Salary <- table(d1$Salary, d1$gender)
+dimnames(contingency_Salary)<- list(Salary =c("Not satisfied", "Quite not satisfied",
+                                              "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"), 
+                                    Gender = c("Male", "Female"))
+contingency_Education <- table(d1$Education, d1$gender)
+dimnames(contingency_Education)<- list(Education =c("Not satisfied", "Quite not satisfied",
+                                                    "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                       Gender = c("Male", "Female"))
+contingency_Business <- table(d1$Business, d1$gender)
+dimnames(contingency_Business)<- list(Business =c("Not satisfied", "Quite not satisfied",
+                                                  "Somehow satisfied, somehow no", 'Quite satisfied', "Satisfied"),
+                                      Gender = c("Male", "Female"))
+
+
+round(addmargins(prop.table(contingency_HealthCare)*100), 1)
+round(addmargins(prop.table(contingency_Transport)*100), 1)
+round(addmargins(prop.table(contingency_Culture)*100), 1)
+round(addmargins(prop.table(contingency_Housing)*100), 1)
+round(addmargins(prop.table(contingency_Security)*100), 1)
+round(addmargins(prop.table(contingency_Career)*100), 1)
+round(addmargins(prop.table(contingency_Salary)*100), 1)
+round(addmargins(prop.table(contingency_Education)*100), 1)
+round(addmargins(prop.table(contingency_Business)*100), 1)
+
+result = CA(contingency_Business); result
+result$col
+```
+
+```{r}
+tables_list <- list(contingency_HealthCare, contingency_Transport, contingency_Culture, contingency_Housing,
+                     contingency_Security, contingency_Career, contingency_Salary, contingency_Education,
+                     contingency_Business)
+length(tables_list)
+
+contingency_data <- array(unlist(tables_list), 
+                          dim = c(length(tables_list), 5, 2),
+                          dimnames = list(c("HealthCare", "Transport", "Culture", 'Housing',
+                                            "Security", "Career","Salary","Education", "Business"),
+                                          c("Not satisfied", "Quite not satisfied", "Somehow satisfied, somehow no",
+                                            'Quite satisfied', "Satisfied"),
+                                          c("Male", "Female")))
+
+
+
+
+x <- aperm(contingency_data, c(1, 2, 3))
+ftable(x)
+
+
+library(factoextra)
+
+
+result <- CA(contingency_HealthCare, graph = FALSE)
+summary(result)
+result$col
+```

@@ -1,0 +1,241 @@
+---
+title: "Final Exam"
+author: "Shcherbakova Daria"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen=999)
+
+library(knitr);library(dplyr);library(haven);library(car);library(stats)
+library(scales);library(lme4);library(lmerTest);library(corrplot)
+
+library(ggplot2);library(sjPlot);library(gridExtra);library(mvnormalTest)
+library(ggeffects); library(GGally); library(CCA); library(CCP)
+
+```
+
+### Canonical correlation analysis
+
+```{r canon corr analysis}
+library("knitr")
+soc <- df[, 2:6]; soc
+econ <- df[, 7:10]; econ
+
+ggpairs(soc)
+ggpairs(econ)
+
+cc1 <- cc(soc, econ); cc1$cor; cc1[3:4]
+
+# compute canonical loadings
+cc2 <- comput(soc, econ, cc1); cc2[3:6]
+
+
+rho <- cc1$cor
+## Define number of observations, number of variables in first set, and number of variables in the second set.
+n <- dim(soc)[1]
+p <- length(soc)
+q <- length(econ)
+
+## Calculate p-values using the F-approximations of different test statistics:
+x = p.asym(rho, n, p, q, tstat = "Wilks"); x
+p.asym(rho, n, p, q, tstat = "Hotelling")
+p.asym(rho, n, p, q, tstat = "Pillai")
+p.asym(rho, n, p, q, tstat = "Roy")
+
+# standardized psych canonical coefficients diagonal matrix of soc sd's
+s1 <- diag(sqrt(diag(cov(soc))))
+soc_x = s1 %*% cc1$xcoef
+
+# standardized psych canonical coefficients diagonal matrix of econ sd's
+s2 <- diag(sqrt(diag(cov(econ))))
+econ_x = s2 %*% cc1$ycoef
+
+# Table 1: Tests of Canonical Dimensions
+table1 <- data.frame(
+  Dim = 1:length(cc1$cor),
+  Canonical_Corr = cc1$cor,
+  F_statistic = x$approx,
+  df1 = x$df1,
+  df2 = x$df2,
+  p_value = x$p.value
+)
+
+kable(table1, format = "html", caption = "Tests of Canonical Dimensions")
+
+
+table2 <- data.frame(
+  
+  Variable = c(names(soc),
+               names(econ)),
+  Dim_1 = c(soc_x[,1], econ_x[, 1]),
+  Dim_2 = c(soc_x[,2], econ_x[, 2]),
+  Dim_3 = c(soc_x[,3], econ_x[, 3])
+)
+
+kable(table2, format = "html", caption = "Standardized Canonical Coefficients")
+
+```
+### PCA
+```{r PCA}
+library(psych)
+library(corrr)
+library(factoextra)
+library("FactoMineR")
+
+data <- (dplyr::select(df, HealthCare:Business)); corr_matrix <- cor(data); ggcorrplot::ggcorrplot(corr_matrix, type = "lower",lab = TRUE)
+
+library('nFactors')
+plot(nScree(corr_matrix, model = "components"))
+fa.parallel(data, fa='pc', show.legend=FALSE, main = "scree plot")
+
+data.pca <- princomp(corr_matrix);summary(data.pca)
+
+factoextra::fviz_eig(data.pca, addlabels = TRUE)
+data.pca$loadings[, 1:2]
+
+factoextra::fviz_cos2(data.pca, choice = "var", axes = 1:2)
+
+factoextra::fviz_pca_var(data.pca, col.var = "cos2",
+            gradient.cols = c("black", "orange", "green"),
+            repel = TRUE)
+
+dim(data)
+PC <- psych::principal(corr_matrix, nfactors=2, rotate='promax'); PC
+
+Economical <- PC$loadings[, 1] %*% t(data)
+class(Economical)
+Social <- PC$loadings[, 2] %*% t(data)
+
+pve <- 100 * data.pca$sdev^2 / sum(data.pca$sdev^2)
+par(mfrow = c(1,2))
+plot(pve, type = 'o', ylab = 'PVE', 
+     xlab = "Principal Component", col = "blue")
+plot(cumsum(pve), type = "o", ylab = "Cumulative PVE", 
+     xlab = "Principal Component", col = "brown3")
+
+database$Economical <- as.vector(Economical)
+database$Social <- as.vector(Social)
+```
+### NonlinearPCA
+```{r NonlinearPCA}
+##################################### Lecture notes #####################################
+library(Gifi)
+data <- as.data.frame(data)
+model_pca <- princals(data, ndim = 2, ordinal = TRUE); summary(model_pca)
+
+model_pca$quantifications
+
+plot(model_pca, plot.type = "transplot")
+plot(model_pca, "loadplot", main = "Loadings Plot")  ## aspect ratio = 1
+plot(model_pca, "biplot", main = "Biplot")
+plot(model_pca, "screeplot")
+
+plot(model_pca$objectscores[,1], model_pca$objectscores[,2], ylim = c(-6,6), col = "blue", pch = 16)
+#text(model_pca$objectscores[,1], model_pca$objectscores[,2], labels = colnames(data), pos = 1, col = "red")
+#legend("topright", legend = unique(data$HealthCare), col = 1:length(unique(data$HealthCare)), pch = 1)
+
+barplot(model_pca$loadings[,1], names.arg = colnames(data), col = "green", las = 2, main = "Contribution to PC1")
+barplot(model_pca$loadings[,2], names.arg = colnames(data), col = "orange", las = 2, main = "Contribution to PC2")
+
+##################################### Categorical principal component analysis (PRINCALS) #####################################
+catpca <- princals(data, ndim = 2, levels = "ordinal", ordinal)
+plot(catpca$objectscores[, 1], catpca$objectscores[, 2], ylim = c(-2, 2))
+summary(catpca)
+
+plot(catpca$objectscores[,1], catpca$objectscores[,2], type = "n", xlim = c(-2, 2), ylim = c(-1, 1), xlab = "Comp1", ylab = "Comp2")
+arrows(0, 0, catpca$loadings[,1], catpca$loadings[,2], angle = 15, length = 0.1, col = "black")
+text(catpca$loadings[,1], catpca$loadings[,2], labels = colnames(data), pos = 2, col = "black")
+
+
+plot(catpca$objectscores[, 1], catpca$objectscores[, 2], col = as.numeric(data$HealthCare))
+legend("topright", legend = unique(data$HealthCare), col = 1:length(unique(data$HealthCare)), pch = 1)
+
+library(ggplot2)
+plot_data <- as.data.frame(catpca$objectscores)
+plot_data$Group <- as.factor(data$HealthCare)
+
+
+ggplot(plot_data, aes(x = D1, y = D2, color = Group)) +
+  geom_point() +
+  theme_minimal() +
+  ggtitle("CATPCA")
+
+database <- cbind(database, catpca$objectscores)
+database <- database %>% rename(
+  Soc.comfort = D1,
+  Prof.development = D2
+)
+
+dim(database)
+
+
+##################################### t-distributed stochastic neighbor embedding (t-SNE) #####################################
+library(Rtsne)
+library(ggplot2)
+library(ggrepel)
+
+tsne_result <- Rtsne(dist(data), pca = FALSE, perplexity = 10, theta = 0.0)
+
+tsne_data <- data.frame(
+  TSNE1 = tsne_result$Y[, 1],
+  TSNE2 = tsne_result$Y[, 2]
+)
+
+ggplot(tsne_data, aes(x = TSNE1, y = TSNE2)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = rownames(data)),cex = 2.5)
+
+##################################### Independent component analysis #####################################
+library(fastICA)
+ica_result <- fastICA(as.matrix(data), n.comp = 2)
+ica_components <- ica_result$S
+plot(ica_components[, 1], ica_components[, 2], xlab = "ICA Component 1", ylab = "ICA Component 2", main = "Independent Component Analysis")
+
+```
+### Multidemensial scaling
+```{r multidemensial scaling}
+dism=dist(data, method = "euclidian", diag = TRUE, upper = TRUE)
+c=as.matrix(dism)
+
+cls_mds <- cmdscale(dism, k = 9, eig = TRUE)
+#cls_mds$eig
+sum(abs(cls_mds$eig[1:2]))/sum(abs(cls_mds$eig))
+
+library(ggpubr)
+mds<- data.frame(cls_mds$points)
+colnames(mds) <- c("Dim1", "Dim2")
+mds$ID <- seq.int(nrow(mds))
+ggscatter(mds, x = "Dim1", y = "Dim2", 
+          #label = "ID",
+          size = 1,
+          repel = TRUE)
+
+
+mds_result <- data.frame(
+  MDS1 = cls_mds$points[, 1],
+  MDS2 = cls_mds$points[, 2],
+  Group = factor(database$HealthCare)
+)
+
+
+plot(mds_result$MDS1, mds_result$MDS2, pch = 16, col = adjustcolor(mds_result$Group, alpha.f = 0.6), main = "MDS Visualization", xlab = "MDS1", ylab = "MDS2")
+quality_ratio <- sum(abs(cls_mds$eig[1:2]))/sum(abs(cls_mds$eig))
+text(0, -5, sprintf("Quality Ratio: %.3f", quality_ratio), pos = 4)
+legend("topright", legend = levels(mds_result$Group), col = unique(mds_result$Group), pch = 16, title = "Satisfaction level", cex = 0.8)
+
+
+library("ape")
+st <- mst(data)
+plot(x, y, xlab = "Coordinate 1", ylab = "Coordinate 2", xlim = range(x)*1.2, type = "n")
+for (i in 1:nrow(dism)) {
+  w1 <- which(st[i, ] == 1)
+  segments(x[i], y[i], x[w1], y[w1])
+}
+text(x, y, labels = colnames(watervoles), cex = 0.7)
+
+```
