@@ -7,6 +7,8 @@ Here you can find my projects for a Master degree in Data Science for Economics 
 
 🏁 [**Adv Multivariate Statistics**](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/MultivariateStatistics)
 
+🕸 [**Network Science**](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/network_science)
+
 🥞 [**Marketing Analytics**](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/Marketing)
 
 👾 [*Labs & Workshops*](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/LABs)
