@@ -18,3 +18,5 @@ Here you can find my projects for a Master degree in Data Science for Economics 
 
 # Different university projects
 👾 [*Labs & Workshops*](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/LABs)
+
+[*Workshop Polars*](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/blob/LABs/polars_workshop)
