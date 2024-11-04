@@ -1,6 +1,10 @@
 # MA_DSE_Unimi
 Here you can find my projects for a Master degree in Data Science for Economics at La Statale.
 
+# Thesis on NLP (Multi-Label Text Classification)
+✂ [**Final thesis**]([https://github.com/dariashcherbakovaaa/ML_muffins-VS-chihua](https://github.com/dariashcherbakovaaa/MA_DSE_Unimi/tree/Thesis))
+
+
 # CNN on images (dog or Muffin)
 ✂ [**Machine Learning**](https://github.com/dariashcherbakovaaa/ML_muffins-VS-chihua)
 
